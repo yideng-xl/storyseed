@@ -99,11 +99,12 @@ export async function generateStory(userPrompt, artStyleKey) {
           }
         }
 
-        console.log('[StorySeed] API response:', JSON.stringify(data).slice(0, 300))
+        console.log('[StorySeed] raw text:', text?.slice(0, 500))
+        console.log('[StorySeed] parsed data:', data)
         if (data?.pages && Array.isArray(data.pages) && data.pages.length > 0) {
           return data
         }
-        console.error('[StorySeed] Bad structure:', data)
+        console.error('[StorySeed] Bad structure, keys:', data ? Object.keys(data) : 'null')
         throw new Error('incomplete')
       } catch (err) {
         if (i === retries - 1) throw err
