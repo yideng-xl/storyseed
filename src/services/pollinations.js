@@ -64,32 +64,7 @@ export function getImageUrl(illustrationPrompt, artStyleKey, seed, pageIndex) {
 export async function generateStory(userPrompt, artStyleKey) {
   const style = ART_STYLES[artStyleKey]
 
-  const systemPrompt = `You are a creative children's story writer specializing in bilingual Chinese-English picture books for ages 4-8.
-
-Create an engaging, age-appropriate, positive story with exactly 6 pages.
-
-IMPORTANT: Return ONLY valid JSON with NO other text, in this exact format:
-{
-  "title": "故事标题（中文）",
-  "titleEn": "Story Title (English)",
-  "pages": [
-    {
-      "pageNumber": 1,
-      "illustrationPrompt": "Detailed visual scene description in English for AI image generation - describe characters appearance, setting/background, action happening, lighting, mood, colors. Be specific and visual.",
-      "chinese": "这一页的中文故事内容，2-3句简单的适合儿童的句子。",
-      "english": "English story text for this page, 2-3 simple sentences appropriate for children."
-    }
-  ]
-}
-
-Requirements:
-- Story must be positive, educational, and imaginative
-- Chinese text: simple vocabulary, warm and engaging tone, proper simplified Chinese
-- English text: simple words, parallel meaning to Chinese
-- Each page advances the story with a clear beginning, middle, and end
-- Illustration prompts: detailed, visual, child-friendly scenes (no violence, no scary elements)
-- Page 1 should introduce the main character and setting
-- Last page should have a happy, satisfying conclusion`
+  const systemPrompt = `You are a creative childrens story writer. Return ONLY valid JSON, no other text: {"title":"","titleEn":"","pages":[{"pageNumber":1,"illustrationPrompt":"","chinese":"","english":""}]}`
 
   const fetchWithRetry = async (retries = 3) => {
     for (let i = 0; i < retries; i++) {
@@ -100,7 +75,7 @@ Requirements:
           body: JSON.stringify({
             messages: [
               { role: 'system', content: systemPrompt },
-              { role: 'user', content: `Create a children's picture book story about: ${userPrompt}` },
+              { role: 'user', content: `Create a 6-page bilingual (Chinese+English) childrens picture book story about: ${userPrompt}. Return JSON with title, titleEn, and pages array (6 pages), each page has pageNumber, illustrationPrompt (English scene description), chinese (2-3 simple sentences), english (2-3 simple sentences) fields. Story must be positive and child-friendly.` },
             ],
             model: 'openai',
             jsonMode: true,
@@ -124,9 +99,11 @@ Requirements:
           }
         }
 
+        console.log('[StorySeed] API response:', JSON.stringify(data).slice(0, 300))
         if (data?.pages && Array.isArray(data.pages) && data.pages.length > 0) {
           return data
         }
+        console.error('[StorySeed] Bad structure:', data)
         throw new Error('incomplete')
       } catch (err) {
         if (i === retries - 1) throw err
