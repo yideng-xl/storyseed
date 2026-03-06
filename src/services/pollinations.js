@@ -88,23 +88,33 @@ export async function generateStory(userPrompt, artStyleKey) {
         }
 
         const text = await response.text()
-        let data
+        console.log('[StorySeed] raw:', text?.slice(0, 200))
 
-        try {
-          data = JSON.parse(text)
-        } catch {
-          const jsonMatch = text.match(/\{[\s\S]*\}/)
-          if (jsonMatch) {
-            try { data = JSON.parse(jsonMatch[0]) } catch { /* continue */ }
+        let data
+        // Try parse outer JSON
+        try { data = JSON.parse(text) } catch { /* continue */ }
+
+        // If it's a message object (has role/content), extract content
+        if (data && !data.pages) {
+          const content = data.content || data.response || data.choices?.[0]?.message?.content
+          if (content) {
+            try { data = JSON.parse(content) } catch {
+              const m = content.match(/\{[\s\S]*\}/)
+              if (m) try { data = JSON.parse(m[0]) } catch { /* continue */ }
+            }
           }
         }
 
-        console.log('[StorySeed] raw text:', text?.slice(0, 500))
-        console.log('[StorySeed] parsed data:', data)
+        // Fallback: regex extract JSON from raw text
+        if (!data?.pages) {
+          const m = text.match(/\{[\s\S]*\}/)
+          if (m) try { data = JSON.parse(m[0]) } catch { /* continue */ }
+        }
+
+        console.log('[StorySeed] final data keys:', data ? Object.keys(data) : 'null')
         if (data?.pages && Array.isArray(data.pages) && data.pages.length > 0) {
           return data
         }
-        console.error('[StorySeed] Bad structure, keys:', data ? Object.keys(data) : 'null')
         throw new Error('incomplete')
       } catch (err) {
         if (i === retries - 1) throw err
