@@ -66,7 +66,7 @@ export async function generateStory(userPrompt, artStyleKey) {
 
   const systemPrompt = `You are a creative children's story writer specializing in bilingual Chinese-English picture books for ages 4-8.
 
-Create an engaging, age-appropriate, positive story with exactly 8 pages.
+Create an engaging, age-appropriate, positive story with exactly 6 pages.
 
 IMPORTANT: Return ONLY valid JSON with NO other text, in this exact format:
 {
@@ -91,38 +91,53 @@ Requirements:
 - Page 1 should introduce the main character and setting
 - Last page should have a happy, satisfying conclusion`
 
-  const response = await fetch('https://text.pollinations.ai/', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Create a children's picture book story about: ${userPrompt}` },
-      ],
-      model: 'openai',
-      jsonMode: true,
-    }),
-  })
+  const fetchWithRetry = async (retries = 3) => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await fetch('https://text.pollinations.ai/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: `Create a children's picture book story about: ${userPrompt}` },
+            ],
+            model: 'openai',
+            jsonMode: true,
+            seed: Math.floor(Math.random() * 99999),
+          }),
+        })
 
-  if (!response.ok) {
-    throw new Error(`故事生成失败 (HTTP ${response.status})`)
-  }
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
+        }
 
-  const text = await response.text()
+        const text = await response.text()
+        let data
 
-  let data
-  try {
-    data = JSON.parse(text)
-  } catch {
-    const jsonMatch = text.match(/\{[\s\S]*\}/)
-    if (jsonMatch) {
-      data = JSON.parse(jsonMatch[0])
-    } else {
-      throw new Error('故事格式解析失败，请重试')
+        try {
+          data = JSON.parse(text)
+        } catch {
+          const jsonMatch = text.match(/\{[\s\S]*\}/)
+          if (jsonMatch) {
+            try { data = JSON.parse(jsonMatch[0]) } catch { /* continue */ }
+          }
+        }
+
+        if (data?.pages && Array.isArray(data.pages) && data.pages.length > 0) {
+          return data
+        }
+        throw new Error('incomplete')
+      } catch (err) {
+        if (i === retries - 1) throw err
+        await new Promise(r => setTimeout(r, 1500))
+      }
     }
   }
 
-  if (!data.pages || !Array.isArray(data.pages) || data.pages.length === 0) {
+  const data = await fetchWithRetry()
+
+  if (!data?.pages || !Array.isArray(data.pages) || data.pages.length === 0) {
     throw new Error('故事内容不完整，请重试')
   }
 
