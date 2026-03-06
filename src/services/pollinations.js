@@ -64,61 +64,31 @@ export function getImageUrl(illustrationPrompt, artStyleKey, seed, pageIndex) {
 export async function generateStory(userPrompt, artStyleKey) {
   const style = ART_STYLES[artStyleKey]
 
-  const systemPrompt = `You are a creative childrens story writer. Return ONLY valid JSON, no other text: {"title":"","titleEn":"","pages":[{"pageNumber":1,"illustrationPrompt":"","chinese":"","english":""}]}`
-
   const fetchWithRetry = async (retries = 3) => {
     for (let i = 0; i < retries; i++) {
       try {
-        const response = await fetch('https://text.pollinations.ai/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: `Create a 6-page bilingual (Chinese+English) childrens picture book story about: ${userPrompt}. Return JSON with title, titleEn, and pages array (6 pages), each page has pageNumber, illustrationPrompt (English scene description), chinese (2-3 simple sentences), english (2-3 simple sentences) fields. Story must be positive and child-friendly.` },
-            ],
-            model: 'openai',
-            jsonMode: true,
-            seed: Math.floor(Math.random() * 99999),
-          }),
-        })
+        const prompt = `Return only valid JSON (no other text). Create a 6-page bilingual Chinese-English children's picture book story about: ${userPrompt}. Use this exact JSON structure: {"title":"中文标题","titleEn":"English Title","pages":[{"pageNumber":1,"illustrationPrompt":"detailed English scene description for image generation","chinese":"2-3 simple Chinese sentences","english":"2-3 simple English sentences"}]}. Story must be positive, imaginative, child-friendly ages 4-8. Page 1 introduces characters, last page has happy ending.`
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`)
-        }
+        const url = `https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=openai&json=true&seed=${Math.floor(Math.random() * 99999)}`
+
+        const response = await fetch(url)
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
 
         const text = await response.text()
-        console.log('[StorySeed] raw:', text?.slice(0, 200))
-
         let data
-        // Try parse outer JSON
-        try { data = JSON.parse(text) } catch { /* continue */ }
 
-        // If it's a message object (has role/content), extract content
-        if (data && !data.pages) {
-          const content = data.content || data.response || data.choices?.[0]?.message?.content
-          if (content) {
-            try { data = JSON.parse(content) } catch {
-              const m = content.match(/\{[\s\S]*\}/)
-              if (m) try { data = JSON.parse(m[0]) } catch { /* continue */ }
-            }
-          }
-        }
-
-        // Fallback: regex extract JSON from raw text
-        if (!data?.pages) {
+        try { data = JSON.parse(text) } catch {
           const m = text.match(/\{[\s\S]*\}/)
           if (m) try { data = JSON.parse(m[0]) } catch { /* continue */ }
         }
 
-        console.log('[StorySeed] final data keys:', data ? Object.keys(data) : 'null')
         if (data?.pages && Array.isArray(data.pages) && data.pages.length > 0) {
           return data
         }
         throw new Error('incomplete')
       } catch (err) {
         if (i === retries - 1) throw err
-        await new Promise(r => setTimeout(r, 1500))
+        await new Promise(r => setTimeout(r, 2000))
       }
     }
   }
