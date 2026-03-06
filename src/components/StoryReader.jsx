@@ -1,6 +1,55 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { ART_STYLES } from '../services/pollinations'
 
+function ShareButton({ story }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleShare = async () => {
+    const params = new URLSearchParams({ prompt: story.prompt, style: story.artStyleKey })
+    const url = `${window.location.origin}${window.location.pathname}?${params.toString()}`
+    try {
+      await navigator.clipboard.writeText(url)
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = url
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <button
+      onClick={handleShare}
+      title="分享故事 Share story"
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${
+        copied
+          ? 'bg-green-500 text-white'
+          : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
+      }`}
+    >
+      {copied ? (
+        <>
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span className="hidden sm:inline">已复制 Copied!</span>
+        </>
+      ) : (
+        <>
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+          </svg>
+          <span className="hidden sm:inline">分享 Share</span>
+        </>
+      )}
+    </button>
+  )
+}
+
 function StoryImage({ src, alt, pageNum }) {
   const [status, setStatus] = useState('loading') // loading | loaded | error
   const [retryCount, setRetryCount] = useState(0)
@@ -142,9 +191,12 @@ export default function StoryReader({ story, onBack }) {
           <p className="text-white/50 text-xs truncate">{story.titleEn}</p>
         </div>
 
-        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r ${style.gradient} text-white text-xs font-bold`}>
-          <span>{style.emoji}</span>
-          <span className="hidden sm:inline">{style.name}</span>
+        <div className="flex items-center gap-2">
+          <ShareButton story={story} />
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r ${style.gradient} text-white text-xs font-bold`}>
+            <span>{style.emoji}</span>
+            <span className="hidden sm:inline">{style.name}</span>
+          </div>
         </div>
       </div>
 

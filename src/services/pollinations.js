@@ -62,41 +62,28 @@ export function getImageUrl(illustrationPrompt, artStyleKey, seed, pageIndex) {
 }
 
 export async function generateStory(userPrompt, artStyleKey) {
-  const style = ART_STYLES[artStyleKey]
+  const prompt = `Return only valid JSON (no other text). Create a 6-page bilingual Chinese-English children's picture book story about: ${userPrompt}. Use this exact JSON structure: {"title":"中文标题","titleEn":"English Title","pages":[{"pageNumber":1,"illustrationPrompt":"detailed English scene description for image generation","chinese":"2-3 simple Chinese sentences","english":"2-3 simple English sentences"}]}. Story must be positive, imaginative, child-friendly ages 4-8. Page 1 introduces characters, last page has happy ending.`
 
   const fetchWithRetry = async (retries = 3) => {
     for (let i = 0; i < retries; i++) {
       try {
-        const prompt = `Return only valid JSON (no other text). Create a 6-page bilingual Chinese-English children's picture book story about: ${userPrompt}. Use this exact JSON structure: {"title":"中文标题","titleEn":"English Title","pages":[{"pageNumber":1,"illustrationPrompt":"detailed English scene description for image generation","chinese":"2-3 simple Chinese sentences","english":"2-3 simple English sentences"}]}. Story must be positive, imaginative, child-friendly ages 4-8. Page 1 introduces characters, last page has happy ending.`
-
-        const url = `https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=mistral&json=true&seed=${Math.floor(Math.random() * 99999)}`
-
-        const response = await fetch(url)
+        const response = await fetch('https://text.pollinations.ai/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [{ role: 'user', content: prompt }],
+            model: 'openai',
+            jsonMode: true,
+            seed: Math.floor(Math.random() * 99999),
+          }),
+        })
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
 
         const text = await response.text()
         let data
-
-        // Try direct JSON parse
         try { data = JSON.parse(text) } catch { /* continue */ }
 
-        // If wrapped in message object (reasoning model), extract content or reasoning
-        if (data && !data.pages) {
-          const inner = data.content || data.response
-          if (inner) {
-            try { data = JSON.parse(inner) } catch {
-              const m = inner.match(/\{[\s\S]*\}/)
-              if (m) try { data = JSON.parse(m[0]) } catch { /* continue */ }
-            }
-          }
-          // Last resort: extract JSON from reasoning_content
-          if (!data?.pages && data?.reasoning_content) {
-            const m = data.reasoning_content.match(/\{[\s\S]*"pages"[\s\S]*\}/)
-            if (m) try { data = JSON.parse(m[0]) } catch { /* continue */ }
-          }
-        }
-
-        // Regex fallback on raw text
+        // Regex fallback if response has surrounding text
         if (!data?.pages) {
           const m = text.match(/\{[\s\S]*"pages"[\s\S]*\}/)
           if (m) try { data = JSON.parse(m[0]) } catch { /* continue */ }
@@ -105,7 +92,7 @@ export async function generateStory(userPrompt, artStyleKey) {
         if (data?.pages && Array.isArray(data.pages) && data.pages.length > 0) {
           return data
         }
-        throw new Error('incomplete')
+        throw new Error('incomplete response')
       } catch (err) {
         if (i === retries - 1) throw err
         await new Promise(r => setTimeout(r, 2000))
@@ -121,7 +108,7 @@ export async function generateStory(userPrompt, artStyleKey) {
 
   const seed = Math.floor(Math.random() * 99999)
 
-  const story = {
+  return {
     id: Date.now().toString(),
     title: data.title || '我的故事',
     titleEn: data.titleEn || 'My Story',
@@ -137,6 +124,4 @@ export async function generateStory(userPrompt, artStyleKey) {
       imageUrl: getImageUrl(page.illustrationPrompt || '', artStyleKey, seed, idx),
     })),
   }
-
-  return story
 }

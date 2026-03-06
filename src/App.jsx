@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import LandingPage from './components/LandingPage'
 import LoadingScreen from './components/LoadingScreen'
 import StoryReader from './components/StoryReader'
@@ -10,6 +10,16 @@ export default function App() {
   const [currentStory, setCurrentStory] = useState(null)
   const [loadingParams, setLoadingParams] = useState(null)
   const [errorMessage, setErrorMessage] = useState('')
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const sharedPrompt = params.get('prompt')
+    const sharedStyle = params.get('style')
+    if (sharedPrompt) {
+      window.history.replaceState({}, '', window.location.pathname)
+      handleGenerate(sharedPrompt, sharedStyle || 'disney')
+    }
+  }, [])
 
   const handleGenerate = async (prompt, artStyleKey, preloadedStory = null) => {
     // If loading from history, skip generation
@@ -71,16 +81,20 @@ export default function App() {
           >
             哎呀，出错了
           </h2>
-          <p className="text-gray-500 mb-2">Oops, something went wrong</p>
-          <p className="text-red-400 text-sm bg-red-50 rounded-xl px-4 py-3 mb-6 font-medium">
-            {errorMessage}
-          </p>
+          <p className="text-gray-500 mb-3">Oops, something went wrong</p>
+          <div className="bg-red-50 rounded-xl px-4 py-3 mb-6 text-left">
+            <p className="text-red-400 text-sm font-medium mb-1">{errorMessage}</p>
+            <p className="text-gray-400 text-xs">
+              网络问题或AI服务繁忙，请稍后重试。<br/>
+              Network issue or AI service busy. Please try again.
+            </p>
+          </div>
           <div className="space-y-3">
             <button
               onClick={() => loadingParams && handleGenerate(loadingParams.prompt, loadingParams.artStyleKey)}
               className="w-full btn-primary"
             >
-              重试 Try Again
+              重试一次 Try Again
             </button>
             <button onClick={handleBack} className="w-full btn-secondary">
               返回首页 Back Home
