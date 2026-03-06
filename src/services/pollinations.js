@@ -69,7 +69,7 @@ export async function generateStory(userPrompt, artStyleKey) {
       try {
         const prompt = `Return only valid JSON (no other text). Create a 6-page bilingual Chinese-English children's picture book story about: ${userPrompt}. Use this exact JSON structure: {"title":"中文标题","titleEn":"English Title","pages":[{"pageNumber":1,"illustrationPrompt":"detailed English scene description for image generation","chinese":"2-3 simple Chinese sentences","english":"2-3 simple English sentences"}]}. Story must be positive, imaginative, child-friendly ages 4-8. Page 1 introduces characters, last page has happy ending.`
 
-        const url = `https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=openai&json=true&seed=${Math.floor(Math.random() * 99999)}`
+        const url = `https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=mistral&json=true&seed=${Math.floor(Math.random() * 99999)}`
 
         const response = await fetch(url)
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
@@ -77,8 +77,28 @@ export async function generateStory(userPrompt, artStyleKey) {
         const text = await response.text()
         let data
 
-        try { data = JSON.parse(text) } catch {
-          const m = text.match(/\{[\s\S]*\}/)
+        // Try direct JSON parse
+        try { data = JSON.parse(text) } catch { /* continue */ }
+
+        // If wrapped in message object (reasoning model), extract content or reasoning
+        if (data && !data.pages) {
+          const inner = data.content || data.response
+          if (inner) {
+            try { data = JSON.parse(inner) } catch {
+              const m = inner.match(/\{[\s\S]*\}/)
+              if (m) try { data = JSON.parse(m[0]) } catch { /* continue */ }
+            }
+          }
+          // Last resort: extract JSON from reasoning_content
+          if (!data?.pages && data?.reasoning_content) {
+            const m = data.reasoning_content.match(/\{[\s\S]*"pages"[\s\S]*\}/)
+            if (m) try { data = JSON.parse(m[0]) } catch { /* continue */ }
+          }
+        }
+
+        // Regex fallback on raw text
+        if (!data?.pages) {
+          const m = text.match(/\{[\s\S]*"pages"[\s\S]*\}/)
           if (m) try { data = JSON.parse(m[0]) } catch { /* continue */ }
         }
 
